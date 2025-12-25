@@ -1,12 +1,14 @@
+
 import React, { useState } from 'react';
 import { WordCategory, StyleConfig, OriginalTextConfig, LayoutSpecificConfig } from '../types';
-import { Bold, Italic, MoveHorizontal, MoveVertical, AlignEndHorizontal, Percent, Hash, Info, AlignVerticalJustifyCenter } from 'lucide-react';
+import { Bold, Italic, MoveHorizontal, MoveVertical, AlignEndHorizontal, Percent, Hash, Info, AlignVerticalJustifyCenter, Type } from 'lucide-react';
+import { getStyleStr } from '../utils/style-helper';
 
 const Tooltip: React.FC<{ text: string; children: React.ReactNode }> = ({ text, children }) => {
   return (
     <div className="group relative flex items-center">
       {children}
-      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-slate-800 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
+      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-slate-800 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10 shadow-lg">
         {text}
         <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-slate-800"></div>
       </div>
@@ -24,37 +26,21 @@ interface VisualStylesSectionProps {
 export const VisualStylesSection: React.FC<VisualStylesSectionProps> = ({ styles, onStylesChange, originalTextConfig, onOriginalTextConfigChange }) => {
   const [activeTab, setActiveTab] = useState<WordCategory>(Object.values(WordCategory)[0]);
 
-  const currentTranslationStyle = styles[activeTab];
+  const currentConfig = styles[activeTab];
 
-  const updateTranslationStyle = (key: keyof StyleConfig, value: any) => {
+  const updateCurrentConfig = (updates: Partial<StyleConfig>) => {
     onStylesChange({
       ...styles,
-      [activeTab]: {
-        ...styles[activeTab],
-        [key]: value
-      }
-    });
-  };
-  
-  const updateOriginalStyle = (key: keyof StyleConfig, value: any) => {
-    onOriginalTextConfigChange({
-      ...originalTextConfig,
-      style: {
-        ...originalTextConfig.style,
-        [key]: value
-      }
+      [activeTab]: { ...currentConfig, ...updates }
     });
   };
 
   const updateLayoutConfig = (mode: 'horizontal' | 'vertical', field: string, value: any, subField?: string) => {
-     // Deep copy the specific mode config to ensure React state updates correctly
-     const currentModeConfig = originalTextConfig[mode];
+     const currentModeConfig = currentConfig[mode];
      let newModeConfig: LayoutSpecificConfig = { ...currentModeConfig };
      
      if (field === 'wrappers' && subField) {
         const [type, prop] = subField.split('.') as ['translation' | 'original', 'prefix' | 'suffix'];
-        
-        // Deep copy the wrappers object and the specific wrapper
         newModeConfig.wrappers = {
             ...currentModeConfig.wrappers,
             [type]: {
@@ -66,10 +52,7 @@ export const VisualStylesSection: React.FC<VisualStylesSectionProps> = ({ styles
         newModeConfig = { ...newModeConfig, [field]: value };
      }
      
-     onOriginalTextConfigChange({ 
-         ...originalTextConfig, 
-         [mode]: newModeConfig 
-     });
+     updateCurrentConfig({ [mode]: newModeConfig });
   };
 
   // --- Preview Engine ---
@@ -77,62 +60,58 @@ export const VisualStylesSection: React.FC<VisualStylesSectionProps> = ({ styles
     const replacementText = "remember";
     const originalText = "记住";
 
-    const activeLayoutConfig = originalTextConfig.activeMode === 'horizontal' ? originalTextConfig.horizontal : originalTextConfig.vertical;
-    const isVertical = originalTextConfig.activeMode === 'vertical';
-    const baselineTarget = activeLayoutConfig.baselineTarget || 'original';
+    // Use current active config for preview
+    const layoutMode = currentConfig.layoutMode;
+    const activeLayout = layoutMode === 'horizontal' ? currentConfig.horizontal : currentConfig.vertical;
+    const isVertical = layoutMode === 'vertical';
+    const baselineTarget = activeLayout.baselineTarget || 'original';
     const isTransBase = baselineTarget === 'translation';
 
-    // Helper to build styles with overrides for Base alignment
-    const getStyle = (config: StyleConfig, isBase: boolean): React.CSSProperties => {
-        // 使用对象展开语法来构建样式，避免直接修改 React.CSSProperties 对象属性可能导致的 TS 类型错误
-        const baseStyles: React.CSSProperties = {
-            color: config.color,
-            backgroundColor: config.backgroundColor,
-            fontWeight: config.isBold ? 'bold' : 'normal',
-            fontStyle: config.isItalic ? 'italic' : 'normal',
-            textDecorationLine: config.underlineStyle !== 'none' ? 'underline' : 'none',
-            textDecorationStyle: config.underlineStyle !== 'none' ? (config.underlineStyle as any) : undefined,
-            textDecorationColor: config.underlineColor,
-            textUnderlineOffset: config.underlineOffset,
-            fontSize: config.fontSize,
+    // Helper to build styles
+    const getTransStyle = (): React.CSSProperties => {
+        const base: React.CSSProperties = {
+            color: currentConfig.color,
+            backgroundColor: currentConfig.backgroundColor,
+            fontWeight: currentConfig.isBold ? 'bold' : 'normal',
+            fontStyle: currentConfig.isItalic ? 'italic' : 'normal',
+            textDecorationLine: currentConfig.underlineStyle !== 'none' ? 'underline' : 'none',
+            textDecorationStyle: currentConfig.underlineStyle !== 'none' ? (currentConfig.underlineStyle as any) : undefined,
+            textDecorationColor: currentConfig.underlineColor,
+            textUnderlineOffset: currentConfig.underlineOffset,
+            fontSize: currentConfig.fontSize,
         };
-
         if (isVertical) {
-            if (isBase) {
-                // Base element: Use normal line-height to align with text.
-                // Do NOT force fontSize='100%', let user config take precedence.
-                return {
-                    ...baseStyles,
-                    lineHeight: 'normal',
-                    verticalAlign: 'baseline',
-                };
-            } else {
-                // RT is compact
-                return {
-                    ...baseStyles,
-                    lineHeight: '1',
-                };
-            }
+            if (isTransBase) return { ...base, lineHeight: 'normal', verticalAlign: 'baseline' };
+            else return { ...base, lineHeight: '1' };
         }
-
-        return baseStyles;
+        return base;
     };
 
-    // Wrappers
-    const transPrefix = activeLayoutConfig.wrappers.translation.prefix;
-    const transSuffix = activeLayoutConfig.wrappers.translation.suffix;
-    const origPrefix = activeLayoutConfig.wrappers.original.prefix;
-    const origSuffix = activeLayoutConfig.wrappers.original.suffix;
+    const getOrigStyle = (): React.CSSProperties => {
+        const base: React.CSSProperties = {
+            color: currentConfig.originalTextColor,
+            fontSize: currentConfig.originalTextFontSize,
+        };
+        if (isVertical) {
+            if (!isTransBase) return { ...base, lineHeight: 'normal', verticalAlign: 'baseline' };
+            else return { ...base, lineHeight: '1' };
+        }
+        return base;
+    };
 
-    // Element Building
+    const transPrefix = activeLayout.wrappers.translation.prefix;
+    const transSuffix = activeLayout.wrappers.translation.suffix;
+    const origPrefix = activeLayout.wrappers.original.prefix;
+    const origSuffix = activeLayout.wrappers.original.suffix;
+
     const TransComponent = (
-        <span style={getStyle(currentTranslationStyle, isTransBase)} className="whitespace-nowrap border-b-2 border-transparent hover:border-blue-200 transition-colors">
+        <span style={getTransStyle()} className="whitespace-nowrap border-b-2 border-transparent hover:border-blue-200 transition-colors">
             {transPrefix}{replacementText}{transSuffix}
         </span>
     );
 
     const OrigComponent = (
-        <span style={getStyle(originalTextConfig.style, !isTransBase)} className="whitespace-nowrap">
+        <span style={getOrigStyle()} className="whitespace-nowrap">
             {origPrefix}{originalText}{origSuffix}
         </span>
     );
@@ -150,47 +129,26 @@ export const VisualStylesSection: React.FC<VisualStylesSectionProps> = ({ styles
     }
 
     let content;
-    const { translationFirst } = activeLayoutConfig;
+    const { translationFirst } = activeLayout;
 
-    if (originalTextConfig.activeMode === 'horizontal') {
+    if (layoutMode === 'horizontal') {
         content = (
             <span className="inline items-baseline">
                 {translationFirst ? TransComponent : OrigComponent}
-                {/* Removed extra margins/gaps to match tight layout */}
                 {translationFirst ? OrigComponent : TransComponent}
             </span>
         );
     } else {
-        // Vertical Layout using <ruby>
-        
-        // Decide Base (Main Line) and Annotation (Ruby Text)
         const BaseComp = isTransBase ? TransComponent : OrigComponent;
         const RtComp = isTransBase ? OrigComponent : TransComponent;
-        
         let rubyPosition: 'over' | 'under' = 'over';
-        
         if (translationFirst) {
-            // Visual: Trans over Orig
-            if (isTransBase) {
-                // Base is Trans (Top) -> RT is Orig (Bottom)
-                rubyPosition = 'under';
-            } else {
-                // Base is Orig (Bottom) -> RT is Trans (Top)
-                rubyPosition = 'over';
-            }
+            if (isTransBase) rubyPosition = 'under';
+            else rubyPosition = 'over';
         } else {
-            // Visual: Orig over Trans
-            if (isTransBase) {
-                // Base is Trans (Bottom) -> RT is Orig (Top)
-                rubyPosition = 'over';
-            } else {
-                // Base is Orig (Top) -> RT is Trans (Bottom)
-                rubyPosition = 'under';
-            }
+            if (isTransBase) rubyPosition = 'over';
+            else rubyPosition = 'under';
         }
-
-        // Apply ruby-align: start to fix left whitespace
-        // Added text-align: left for strict alignment
         content = (
            <ruby style={{ rubyPosition, margin: '0', rubyAlign: 'start', textAlign: 'left' } as any}>
               {BaseComp}
@@ -210,67 +168,6 @@ export const VisualStylesSection: React.FC<VisualStylesSectionProps> = ({ styles
     );
   };
 
-  const StyleControls = ({ config, onChange }: { config: StyleConfig, onChange: (k: keyof StyleConfig, v: any) => void }) => (
-      <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-                <label className="text-xs text-slate-500 block mb-1">文字颜色</label>
-                <div className="flex items-center space-x-2">
-                    <input type="color" value={config.color} onChange={(e) => onChange('color', e.target.value)} className="w-8 h-8 rounded border cursor-pointer" />
-                </div>
-            </div>
-            <div>
-                <label className="text-xs text-slate-500 block mb-1">背景颜色</label>
-                <div className="flex items-center space-x-2">
-                    <input type="color" value={config.backgroundColor} onChange={(e) => onChange('backgroundColor', e.target.value)} className="w-8 h-8 rounded border cursor-pointer" />
-                </div>
-            </div>
-          </div>
-          <div className="flex space-x-2">
-            <button onClick={() => onChange('isBold', !config.isBold)} className={`flex-1 py-1.5 rounded border flex items-center justify-center text-xs ${config.isBold ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-white text-slate-600'}`}>
-                <Bold className="w-3 h-3 mr-2" /> 加粗
-            </button>
-            <button onClick={() => onChange('isItalic', !config.isItalic)} className={`flex-1 py-1.5 rounded border flex items-center justify-center text-xs ${config.isItalic ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-white text-slate-600'}`}>
-                <Italic className="w-3 h-3 mr-2" /> 斜体
-            </button>
-          </div>
-          
-          <div className="pt-2 border-t border-slate-100 mt-2">
-              <label className="text-xs text-slate-500 block mb-1">下划线样式</label>
-              <select value={config.underlineStyle} onChange={(e) => onChange('underlineStyle', e.target.value)} className="w-full text-xs border-slate-300 rounded">
-                  <option value="none">无</option>
-                  <option value="solid">实线</option>
-                  <option value="dashed">虚线</option>
-                  <option value="dotted">点线</option>
-                  <option value="double">双线</option>
-                  <option value="wavy">波浪线</option>
-              </select>
-          </div>
-          <div>
-              <label className="text-xs text-slate-500 block mb-1">下划线偏移 ({config.underlineOffset})</label>
-              <input type="range" min="0" max="8" value={parseInt(config.underlineOffset)} onChange={(e) => onChange('underlineOffset', `${e.target.value}px`)} className="w-full h-1.5 bg-slate-200 rounded-lg cursor-pointer" />
-          </div>
-          
-           <div>
-              <label className="text-xs text-slate-500 block mb-1">字号 ({config.fontSize})</label>
-               <select value={config.fontSize} onChange={(e) => onChange('fontSize', e.target.value)} className="w-full text-xs border-slate-300 rounded">
-                  <option value="0.5em">极小 (0.5em)</option>
-                  <option value="0.6em">超小 (0.6em)</option>
-                  <option value="0.75em">小 (0.75em)</option>
-                  <option value="0.85em">较小 (0.85em)</option>
-                  <option value="0.9em">微小 (0.9em)</option>
-                  <option value="1em">正常 (1em)</option>
-                  <option value="1.1em">较大 (1.1em)</option>
-                  <option value="1.25em">大 (1.25em)</option>
-                  <option value="1.5em">加大 (1.5em)</option>
-                  <option value="1.75em">超大 (1.75em)</option>
-                  <option value="2em">极大 (2em)</option>
-              </select>
-          </div>
-      </div>
-  );
-
-  // --- Wrapper Input Component ---
   const WrapperInput = ({ value, onChange, placeholder = "" }: { value: string, onChange: (v: string) => void, placeholder?: string }) => (
       <input 
          type="text" 
@@ -283,9 +180,23 @@ export const VisualStylesSection: React.FC<VisualStylesSectionProps> = ({ styles
 
   return (
     <section className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-      <div className="p-6 border-b border-slate-200">
-        <h2 className="text-lg font-bold text-slate-800">译文样式配置</h2>
-        <p className="text-sm text-slate-500 mt-1">为不同类型的词汇自定义视觉效果及原文显示方式。</p>
+      <div className="p-6 border-b border-slate-200 flex justify-between items-center">
+        <div>
+            <h2 className="text-lg font-bold text-slate-800">视觉样式配置</h2>
+            <p className="text-sm text-slate-500 mt-1">每个状态（分类）的单词均可配置独立的样式与布局结构。</p>
+        </div>
+        <div className="flex items-center gap-3">
+            <span className="text-sm text-slate-600">全局显示原文</span>
+            <label className="relative inline-flex items-center cursor-pointer">
+                <input 
+                type="checkbox" 
+                checked={originalTextConfig.show} 
+                onChange={() => onOriginalTextConfigChange({...originalTextConfig, show: !originalTextConfig.show})}
+                className="sr-only peer"
+                />
+                <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+            </label>
+        </div>
       </div>
       
       {/* Tabs */}
@@ -305,201 +216,216 @@ export const VisualStylesSection: React.FC<VisualStylesSectionProps> = ({ styles
            ))}
       </div>
 
-      <div className="p-8 space-y-8">
+      <div className="p-8 space-y-12">
            {/* Preview Section */}
            <div>
-             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">实时预览</h3>
+             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">实时预览 ({activeTab})</h3>
              <div className="bg-slate-50 border border-slate-200 rounded-lg p-8 flex justify-center items-center min-h-[180px]">
                 <WordPreview />
              </div>
            </div>
            
-           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-12">
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
               {/* Left Column: Translation Style */}
               <div>
-                 <h4 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-2 mb-4 flex items-center">
+                 <h4 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-2 mb-6 flex items-center">
                     <span className="w-2 h-2 rounded-full bg-blue-500 mr-2"></span>
-                    译文样式配置 (Translation)
+                    译文样式 (Translation Style)
                  </h4>
-                 <StyleControls config={currentTranslationStyle} onChange={updateTranslationStyle} />
+                 
+                 <div className="space-y-5">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-xs text-slate-500 block mb-1.5">文字颜色</label>
+                            <input type="color" value={currentConfig.color} onChange={(e) => updateCurrentConfig({color: e.target.value})} className="w-full h-9 rounded border cursor-pointer" />
+                        </div>
+                        <div>
+                            <label className="text-xs text-slate-500 block mb-1.5">背景颜色</label>
+                            <input type="color" value={currentConfig.backgroundColor} onChange={(e) => updateCurrentConfig({backgroundColor: e.target.value})} className="w-full h-9 rounded border cursor-pointer" />
+                        </div>
+                    </div>
+
+                    <div className="flex gap-2">
+                        <button onClick={() => updateCurrentConfig({isBold: !currentConfig.isBold})} className={`flex-1 py-2 rounded border flex items-center justify-center text-xs font-medium transition ${currentConfig.isBold ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-white text-slate-600'}`}>
+                            <Bold className="w-3.5 h-3.5 mr-2" /> 加粗
+                        </button>
+                        <button onClick={() => updateCurrentConfig({isItalic: !currentConfig.isItalic})} className={`flex-1 py-2 rounded border flex items-center justify-center text-xs font-medium transition ${currentConfig.isItalic ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-white text-slate-600'}`}>
+                            <Italic className="w-3.5 h-3.5 mr-2" /> 斜体
+                        </button>
+                    </div>
+
+                    <div>
+                        <label className="text-xs text-slate-500 block mb-1.5">字号 (Size)</label>
+                        <select value={currentConfig.fontSize} onChange={(e) => updateCurrentConfig({fontSize: e.target.value})} className="w-full text-xs border-slate-300 rounded-lg p-2.5">
+                            <option value="0.75em">0.75x</option>
+                            <option value="0.85em">0.85x</option>
+                            <option value="1em">1x (正常)</option>
+                            <option value="1.1em">1.1x</option>
+                            <option value="1.25em">1.25x</option>
+                            <option value="1.5em">1.5x</option>
+                        </select>
+                    </div>
+
+                    <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
+                        <label className="text-xs font-bold text-slate-400 block mb-3 uppercase tracking-wider">下划线设置</label>
+                        <div className="grid grid-cols-2 gap-3">
+                            <select value={currentConfig.underlineStyle} onChange={(e) => updateCurrentConfig({underlineStyle: e.target.value as any})} className="w-full text-xs border-slate-300 rounded p-2">
+                                <option value="none">无</option>
+                                <option value="solid">实线</option>
+                                <option value="dashed">虚线</option>
+                                <option value="dotted">点线</option>
+                                <option value="wavy">波浪线</option>
+                            </select>
+                            <input type="range" min="0" max="8" value={parseInt(currentConfig.underlineOffset)} onChange={(e) => updateCurrentConfig({underlineOffset: `${e.target.value}px`})} className="w-full h-1.5 bg-slate-200 rounded-lg cursor-pointer self-center" />
+                        </div>
+                    </div>
+                 </div>
               </div>
 
-              {/* Right Column: Original Text & Layout */}
+              {/* Right Column: Layout & Original Text Style */}
               <div>
-                 <div className="flex justify-between items-center border-b border-slate-100 pb-2 mb-4">
+                 <div className="flex justify-between items-center border-b border-slate-100 pb-2 mb-6">
                     <h4 className="text-sm font-bold text-slate-900 flex items-center">
-                       <span className={`w-2 h-2 rounded-full mr-2 ${originalTextConfig.show ? 'bg-purple-500' : 'bg-slate-300'}`}></span>
-                       原文样式配置 (Original)
+                       <span className="w-2 h-2 rounded-full bg-purple-500 mr-2"></span>
+                       布局与原文 (Layout & Original)
                     </h4>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                          <input 
-                            type="checkbox" 
-                            checked={originalTextConfig.show} 
-                            onChange={() => onOriginalTextConfigChange({...originalTextConfig, show: !originalTextConfig.show})}
-                            className="sr-only peer"
-                          />
-                          <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
-                    </label>
                  </div>
                  
                  {originalTextConfig.show ? (
-                     <div className="space-y-6 animate-in fade-in slide-in-from-top-2">
-                        <StyleControls config={originalTextConfig.style} onChange={updateOriginalStyle} />
+                     <div className="space-y-6">
+                        {/* Original Text Style */}
+                        <div className="flex gap-4 items-end bg-slate-50 p-4 rounded-lg border border-slate-100">
+                            <div className="flex-1">
+                                <label className="text-xs text-slate-500 block mb-1.5">原文颜色</label>
+                                <input type="color" value={currentConfig.originalTextColor} onChange={(e) => updateCurrentConfig({originalTextColor: e.target.value})} className="w-full h-8 rounded border cursor-pointer" />
+                            </div>
+                            <div className="flex-1">
+                                <label className="text-xs text-slate-500 block mb-1.5">原文及包裹符字号</label>
+                                <select value={currentConfig.originalTextFontSize} onChange={(e) => updateCurrentConfig({originalTextFontSize: e.target.value})} className="w-full text-xs border-slate-300 rounded p-1.5 h-8">
+                                    <option value="0.75em">0.75x</option>
+                                    <option value="0.85em">0.85x</option>
+                                    <option value="1em">1x</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        {/* Layout Mode Selection */}
+                        <div className="grid grid-cols-2 gap-4">
+                            <button 
+                                onClick={() => updateCurrentConfig({layoutMode: 'horizontal'})}
+                                className={`p-4 rounded-xl border-2 transition-all text-left relative ${currentConfig.layoutMode === 'horizontal' ? 'border-blue-500 bg-blue-50/50' : 'border-slate-100 hover:border-blue-200'}`}
+                            >
+                                <MoveHorizontal className="w-5 h-5 mb-2 text-slate-500" />
+                                <div className="text-xs font-bold text-slate-700">水平布局</div>
+                                {currentConfig.layoutMode === 'horizontal' && <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-blue-500"></div>}
+                            </button>
+                            <button 
+                                onClick={() => updateCurrentConfig({layoutMode: 'vertical'})}
+                                className={`p-4 rounded-xl border-2 transition-all text-left relative ${currentConfig.layoutMode === 'vertical' ? 'border-blue-500 bg-blue-50/50' : 'border-slate-100 hover:border-blue-200'}`}
+                            >
+                                <MoveVertical className="w-5 h-5 mb-2 text-slate-500" />
+                                <div className="text-xs font-bold text-slate-700">垂直堆叠</div>
+                                {currentConfig.layoutMode === 'vertical' && <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-blue-500"></div>}
+                            </button>
+                        </div>
+
+                        {/* Detail Builder */}
+                        <div className="bg-white border border-slate-200 rounded-lg p-4 relative">
+                            {currentConfig.layoutMode === 'horizontal' ? (
+                                // Horizontal Builder
+                                <div className="flex items-center justify-center overflow-x-auto py-2">
+                                    <div className="flex items-center">
+                                    <WrapperInput 
+                                        value={currentConfig.horizontal.translationFirst ? currentConfig.horizontal.wrappers.translation.prefix : currentConfig.horizontal.wrappers.original.prefix}
+                                        onChange={v => updateLayoutConfig('horizontal', 'wrappers', v, currentConfig.horizontal.translationFirst ? 'translation.prefix' : 'original.prefix')}
+                                        placeholder={currentConfig.horizontal.translationFirst ? "" : "("}
+                                    />
+                                    <select 
+                                        value={currentConfig.horizontal.translationFirst ? 'translation' : 'original'}
+                                        onChange={e => updateLayoutConfig('horizontal', 'translationFirst', e.target.value === 'translation')}
+                                        className="text-xs py-1 px-2 border-slate-200 bg-slate-50 rounded min-w-[60px] mx-1"
+                                    >
+                                        <option value="translation">译文</option>
+                                        <option value="original">原文</option>
+                                    </select>
+                                    <WrapperInput 
+                                        value={currentConfig.horizontal.translationFirst ? currentConfig.horizontal.wrappers.translation.suffix : currentConfig.horizontal.wrappers.original.suffix}
+                                        onChange={v => updateLayoutConfig('horizontal', 'wrappers', v, currentConfig.horizontal.translationFirst ? 'translation.suffix' : 'original.suffix')}
+                                        placeholder={currentConfig.horizontal.translationFirst ? "" : ")"}
+                                    />
+                                    </div>
+                                    <span className="text-slate-300 mx-2">|</span>
+                                    <div className="flex items-center">
+                                    <WrapperInput 
+                                        value={currentConfig.horizontal.translationFirst ? currentConfig.horizontal.wrappers.original.prefix : currentConfig.horizontal.wrappers.translation.prefix}
+                                        onChange={v => updateLayoutConfig('horizontal', 'wrappers', v, currentConfig.horizontal.translationFirst ? 'original.prefix' : 'translation.prefix')}
+                                        placeholder={currentConfig.horizontal.translationFirst ? "(" : ""}
+                                    />
+                                    <div className="text-xs py-1.5 px-3 bg-slate-100 text-slate-500 rounded border border-slate-200 min-w-[60px] text-center select-none mx-1">
+                                        {currentConfig.horizontal.translationFirst ? '原文' : '译文'}
+                                    </div>
+                                    <WrapperInput 
+                                        value={currentConfig.horizontal.translationFirst ? currentConfig.horizontal.wrappers.original.suffix : currentConfig.horizontal.wrappers.translation.suffix}
+                                        onChange={v => updateLayoutConfig('horizontal', 'wrappers', v, currentConfig.horizontal.translationFirst ? 'original.suffix' : 'translation.suffix')}
+                                        placeholder={currentConfig.horizontal.translationFirst ? ")" : ""}
+                                    />
+                                    </div>
+                                </div>
+                            ) : (
+                                // Vertical Builder
+                                <div className="flex flex-col gap-3">
+                                    <div className="flex items-center justify-center gap-1">
+                                        <span className="text-[10px] text-slate-400 w-8 text-right">Top</span>
+                                        <WrapperInput 
+                                            value={currentConfig.vertical.translationFirst ? currentConfig.vertical.wrappers.translation.prefix : currentConfig.vertical.wrappers.original.prefix}
+                                            onChange={v => updateLayoutConfig('vertical', 'wrappers', v, currentConfig.vertical.translationFirst ? 'translation.prefix' : 'original.prefix')}
+                                        />
+                                        <select 
+                                            value={currentConfig.vertical.translationFirst ? 'translation' : 'original'}
+                                            onChange={e => updateLayoutConfig('vertical', 'translationFirst', e.target.value === 'translation')}
+                                            className="text-xs py-1 px-2 border-slate-200 bg-slate-50 rounded min-w-[70px]"
+                                        >
+                                            <option value="translation">译文(上)</option>
+                                            <option value="original">原文(上)</option>
+                                        </select>
+                                        <WrapperInput 
+                                            value={currentConfig.vertical.translationFirst ? currentConfig.vertical.wrappers.translation.suffix : currentConfig.vertical.wrappers.original.suffix}
+                                            onChange={v => updateLayoutConfig('vertical', 'wrappers', v, currentConfig.vertical.translationFirst ? 'translation.suffix' : 'original.suffix')}
+                                        />
+                                    </div>
+                                    <div className="flex items-center justify-center gap-1">
+                                        <span className="text-[10px] text-slate-400 w-8 text-right">Bottom</span>
+                                        <WrapperInput 
+                                            value={currentConfig.vertical.translationFirst ? currentConfig.vertical.wrappers.original.prefix : currentConfig.vertical.wrappers.translation.prefix}
+                                            onChange={v => updateLayoutConfig('vertical', 'wrappers', v, currentConfig.vertical.translationFirst ? 'original.prefix' : 'translation.prefix')}
+                                        />
+                                        <div className="text-xs py-1.5 px-3 bg-slate-100 text-slate-500 rounded border border-slate-200 min-w-[70px] text-center select-none">
+                                            {currentConfig.vertical.translationFirst ? '原文(下)' : '译文(下)'}
+                                        </div>
+                                        <WrapperInput 
+                                            value={currentConfig.vertical.translationFirst ? currentConfig.vertical.wrappers.original.suffix : currentConfig.vertical.wrappers.translation.suffix}
+                                            onChange={v => updateLayoutConfig('vertical', 'wrappers', v, currentConfig.vertical.translationFirst ? 'original.suffix' : 'translation.suffix')}
+                                        />
+                                    </div>
+                                    <div className="border-t border-slate-100 pt-3 flex items-center justify-center gap-3">
+                                        <span className="text-xs font-bold text-slate-500 flex items-center"><AlignVerticalJustifyCenter className="w-3 h-3 mr-1"/> 对齐基准</span>
+                                        <div className="flex gap-2">
+                                            <button onClick={() => updateLayoutConfig('vertical', 'baselineTarget', 'original')} className={`px-2 py-1 text-[10px] rounded border ${currentConfig.vertical.baselineTarget === 'original' ? 'bg-blue-50 border-blue-200 text-blue-600 font-bold' : 'bg-slate-50 border-slate-200'}`}>原文齐平</button>
+                                            <button onClick={() => updateLayoutConfig('vertical', 'baselineTarget', 'translation')} className={`px-2 py-1 text-[10px] rounded border ${currentConfig.vertical.baselineTarget === 'translation' ? 'bg-blue-50 border-blue-200 text-blue-600 font-bold' : 'bg-slate-50 border-slate-200'}`}>译文齐平</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                      </div>
                  ) : (
-                    <div className="text-center py-8 text-slate-400 text-sm bg-slate-50 rounded-lg border border-dashed border-slate-200">
-                       原文已隐藏，仅显示译文
+                    <div className="text-center py-16 text-slate-400 text-sm bg-slate-50 rounded-lg border border-dashed border-slate-200">
+                       <Type className="w-8 h-8 mx-auto mb-2 opacity-20"/>
+                       原文显示已关闭
                     </div>
                  )}
               </div>
            </div>
-
-           {/* Full Width: Layout & Wrapping Symbols */}
-           {originalTextConfig.show && (
-             <div className="pt-6 border-t border-slate-100">
-               <h4 className="text-sm font-bold text-slate-900 mb-4">原文布局与包裹符号</h4>
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                 
-                 {/* Horizontal Card */}
-                 <div 
-                    onClick={() => onOriginalTextConfigChange({...originalTextConfig, activeMode: 'horizontal'})}
-                    className={`relative border-2 rounded-xl p-5 cursor-pointer transition-all ${originalTextConfig.activeMode === 'horizontal' ? 'border-blue-500 bg-blue-50/50' : 'border-slate-100 hover:border-blue-200 bg-white'}`}
-                 >
-                    <div className="flex items-center justify-between mb-4">
-                       <div className="flex items-center">
-                          <input type="radio" checked={originalTextConfig.activeMode === 'horizontal'} readOnly className="text-blue-600 mr-2"/>
-                          <span className="font-bold text-sm text-slate-700 flex items-center"><MoveHorizontal className="w-4 h-4 mr-1.5"/> 左右并排 (Horizontal)</span>
-                       </div>
-                    </div>
-                    
-                    {/* Horizontal Builder */}
-                    <div className="bg-white border border-slate-200 rounded-lg p-4 flex items-center justify-center overflow-x-auto" onClick={e => e.stopPropagation()}>
-                        {/* Wrapper for tightening gap */}
-                        <div className="flex items-center">
-                           <WrapperInput 
-                             value={originalTextConfig.horizontal.translationFirst ? originalTextConfig.horizontal.wrappers.translation.prefix : originalTextConfig.horizontal.wrappers.original.prefix}
-                             onChange={v => updateLayoutConfig('horizontal', 'wrappers', v, originalTextConfig.horizontal.translationFirst ? 'translation.prefix' : 'original.prefix')}
-                             placeholder={originalTextConfig.horizontal.translationFirst ? "" : "("}
-                           />
-                           
-                           <select 
-                             value={originalTextConfig.horizontal.translationFirst ? 'translation' : 'original'}
-                             onChange={e => updateLayoutConfig('horizontal', 'translationFirst', e.target.value === 'translation')}
-                             className="text-xs py-1 px-2 border-slate-200 bg-slate-50 rounded min-w-[60px] mx-1"
-                           >
-                              <option value="translation">译文</option>
-                              <option value="original">原文</option>
-                           </select>
-
-                           <WrapperInput 
-                             value={originalTextConfig.horizontal.translationFirst ? originalTextConfig.horizontal.wrappers.translation.suffix : originalTextConfig.horizontal.wrappers.original.suffix}
-                             onChange={v => updateLayoutConfig('horizontal', 'wrappers', v, originalTextConfig.horizontal.translationFirst ? 'translation.suffix' : 'original.suffix')}
-                             placeholder={originalTextConfig.horizontal.translationFirst ? "" : ")"}
-                           />
-                        </div>
-                        
-                        <span className="text-slate-300 mx-2">|</span>
-
-                        <div className="flex items-center">
-                           <WrapperInput 
-                             value={originalTextConfig.horizontal.translationFirst ? originalTextConfig.horizontal.wrappers.original.prefix : originalTextConfig.horizontal.wrappers.translation.prefix}
-                             onChange={v => updateLayoutConfig('horizontal', 'wrappers', v, originalTextConfig.horizontal.translationFirst ? 'original.prefix' : 'translation.prefix')}
-                             placeholder={originalTextConfig.horizontal.translationFirst ? "(" : ""}
-                           />
-                           
-                           <div className="text-xs py-1.5 px-3 bg-slate-100 text-slate-500 rounded border border-slate-200 min-w-[60px] text-center select-none mx-1">
-                              {originalTextConfig.horizontal.translationFirst ? '原文' : '译文'}
-                           </div>
-
-                           <WrapperInput 
-                             value={originalTextConfig.horizontal.translationFirst ? originalTextConfig.horizontal.wrappers.original.suffix : originalTextConfig.horizontal.wrappers.translation.suffix}
-                             onChange={v => updateLayoutConfig('horizontal', 'wrappers', v, originalTextConfig.horizontal.translationFirst ? 'original.suffix' : 'translation.suffix')}
-                             placeholder={originalTextConfig.horizontal.translationFirst ? ")" : ""}
-                           />
-                        </div>
-                    </div>
-                 </div>
-
-                 {/* Vertical Card */}
-                 <div 
-                    onClick={() => onOriginalTextConfigChange({...originalTextConfig, activeMode: 'vertical'})}
-                    className={`relative border-2 rounded-xl p-5 cursor-pointer transition-all ${originalTextConfig.activeMode === 'vertical' ? 'border-blue-500 bg-blue-50/50' : 'border-slate-100 hover:border-blue-200 bg-white'}`}
-                 >
-                    <div className="flex items-center justify-between mb-4">
-                       <div className="flex items-center">
-                          <input type="radio" checked={originalTextConfig.activeMode === 'vertical'} readOnly className="text-blue-600 mr-2"/>
-                          <span className="font-bold text-sm text-slate-700 flex items-center"><MoveVertical className="w-4 h-4 mr-1.5"/> 上下堆叠 (Vertical)</span>
-                       </div>
-                    </div>
-
-                    {/* Vertical Builder */}
-                    <div className="bg-white border border-slate-200 rounded-lg p-4 flex flex-col gap-4" onClick={e => e.stopPropagation()}>
-                         {/* Config Row */}
-                         <div className="flex items-center justify-center gap-3">
-                            {/* Top Row */}
-                            <div className="flex flex-col items-center gap-1">
-                                <div className="flex items-center gap-1">
-                                    <span className="text-[10px] text-slate-400 w-8 text-right">Top</span>
-                                    <WrapperInput 
-                                        value={originalTextConfig.vertical.translationFirst ? originalTextConfig.vertical.wrappers.translation.prefix : originalTextConfig.vertical.wrappers.original.prefix}
-                                        onChange={v => updateLayoutConfig('vertical', 'wrappers', v, originalTextConfig.vertical.translationFirst ? 'translation.prefix' : 'original.prefix')}
-                                    />
-                                    <select 
-                                        value={originalTextConfig.vertical.translationFirst ? 'translation' : 'original'}
-                                        onChange={e => updateLayoutConfig('vertical', 'translationFirst', e.target.value === 'translation')}
-                                        className="text-xs py-1 px-2 border-slate-200 bg-slate-50 rounded min-w-[70px]"
-                                    >
-                                        <option value="translation">译文(上)</option>
-                                        <option value="original">原文(上)</option>
-                                    </select>
-                                    <WrapperInput 
-                                        value={originalTextConfig.vertical.translationFirst ? originalTextConfig.vertical.wrappers.translation.suffix : originalTextConfig.vertical.wrappers.original.suffix}
-                                        onChange={v => updateLayoutConfig('vertical', 'wrappers', v, originalTextConfig.vertical.translationFirst ? 'translation.suffix' : 'original.suffix')}
-                                    />
-                                </div>
-                                <div className="flex items-center gap-1">
-                                    <span className="text-[10px] text-slate-400 w-8 text-right">Bottom</span>
-                                    <WrapperInput 
-                                        value={originalTextConfig.vertical.translationFirst ? originalTextConfig.vertical.wrappers.original.prefix : originalTextConfig.vertical.wrappers.translation.prefix}
-                                        onChange={v => updateLayoutConfig('vertical', 'wrappers', v, originalTextConfig.vertical.translationFirst ? 'original.prefix' : 'translation.prefix')}
-                                    />
-                                    <div className="text-xs py-1.5 px-3 bg-slate-100 text-slate-500 rounded border border-slate-200 min-w-[70px] text-center select-none">
-                                        {originalTextConfig.vertical.translationFirst ? '原文(下)' : '译文(下)'}
-                                    </div>
-                                    <WrapperInput 
-                                        value={originalTextConfig.vertical.translationFirst ? originalTextConfig.vertical.wrappers.original.suffix : originalTextConfig.vertical.wrappers.translation.suffix}
-                                        onChange={v => updateLayoutConfig('vertical', 'wrappers', v, originalTextConfig.vertical.translationFirst ? 'original.suffix' : 'translation.suffix')}
-                                    />
-                                </div>
-                            </div>
-                         </div>
-                         
-                         <div className="border-t border-slate-100 pt-3">
-                            <div className="flex items-center gap-2 mb-2">
-                               <AlignVerticalJustifyCenter className="w-3 h-3 text-slate-400" />
-                               <span className="text-xs font-bold text-slate-500">对齐基准 (ALIGNMENT TARGET)</span>
-                            </div>
-                            <div className="flex gap-2">
-                               <button 
-                                 onClick={() => updateLayoutConfig('vertical', 'baselineTarget', 'original')}
-                                 className={`flex-1 py-1.5 text-xs rounded border transition-colors ${originalTextConfig.vertical.baselineTarget !== 'translation' ? 'bg-blue-50 border-blue-200 text-blue-600 font-bold' : 'bg-slate-50 border-slate-200 text-slate-500'}`}
-                               >
-                                 原文保持齐平
-                               </button>
-                               <button 
-                                 onClick={() => updateLayoutConfig('vertical', 'baselineTarget', 'translation')}
-                                 className={`flex-1 py-1.5 text-xs rounded border transition-colors ${originalTextConfig.vertical.baselineTarget === 'translation' ? 'bg-blue-50 border-blue-200 text-blue-600 font-bold' : 'bg-slate-50 border-slate-200 text-slate-500'}`}
-                               >
-                                 译文保持齐平
-                               </button>
-                            </div>
-                         </div>
-                    </div>
-                 </div>
-
-               </div>
-             </div>
-           )}
 
            {/* Density Configuration */}
            <div className="mt-8 pt-6 border-t border-slate-200">
@@ -510,7 +436,7 @@ export const VisualStylesSection: React.FC<VisualStylesSectionProps> = ({ styles
                  <h4 className="text-sm font-bold text-slate-800">
                     替换密度配置 ({activeTab})
                  </h4>
-                 <Tooltip text="控制当前类型单词在页面上的替换频率。可按个数限制，或按总词数的百分比限制。">
+                 <Tooltip text="控制网页上【该分类】单词的替换频率。例如设置50%，则页面上所有该分类的单词中，只有一半会被替换。">
                     <Info className="w-3.5 h-3.5 text-slate-400 cursor-help" />
                  </Tooltip>
               </div>
@@ -519,14 +445,14 @@ export const VisualStylesSection: React.FC<VisualStylesSectionProps> = ({ styles
                   {/* Toggle Mode */}
                   <div className="flex bg-white p-1 rounded-lg border border-slate-200 shadow-sm shrink-0">
                       <button 
-                         onClick={() => updateTranslationStyle('densityMode', 'count')}
-                         className={`flex items-center px-4 py-2 rounded-md text-sm transition-all ${currentTranslationStyle.densityMode === 'count' ? 'bg-blue-50 text-blue-600 font-bold' : 'text-slate-500 hover:bg-slate-50'}`}
+                         onClick={() => updateCurrentConfig({densityMode: 'count'})}
+                         className={`flex items-center px-4 py-2 rounded-md text-sm transition-all ${currentConfig.densityMode === 'count' ? 'bg-blue-50 text-blue-600 font-bold' : 'text-slate-500 hover:bg-slate-50'}`}
                       >
-                         <Hash className="w-4 h-4 mr-2" /> 按个数 (Count)
+                         <Hash className="w-4 h-4 mr-2" /> 固定数量 (Count)
                       </button>
                       <button 
-                         onClick={() => updateTranslationStyle('densityMode', 'percent')}
-                         className={`flex items-center px-4 py-2 rounded-md text-sm transition-all ${currentTranslationStyle.densityMode === 'percent' ? 'bg-blue-50 text-blue-600 font-bold' : 'text-slate-500 hover:bg-slate-50'}`}
+                         onClick={() => updateCurrentConfig({densityMode: 'percent'})}
+                         className={`flex items-center px-4 py-2 rounded-md text-sm transition-all ${currentConfig.densityMode === 'percent' ? 'bg-blue-50 text-blue-600 font-bold' : 'text-slate-500 hover:bg-slate-50'}`}
                       >
                          <Percent className="w-4 h-4 mr-2" /> 按百分比 (%)
                       </button>
@@ -538,33 +464,33 @@ export const VisualStylesSection: React.FC<VisualStylesSectionProps> = ({ styles
                           <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
                               <div 
                                 className="h-full bg-blue-500 rounded-full" 
-                                style={{width: `${currentTranslationStyle.densityMode === 'percent' ? currentTranslationStyle.densityValue : Math.min(100, (currentTranslationStyle.densityValue / 50) * 100)}%`}}
+                                style={{width: `${currentConfig.densityMode === 'percent' ? currentConfig.densityValue : Math.min(100, (currentConfig.densityValue / 50) * 100)}%`}}
                               ></div>
                           </div>
                           <input 
                             type="range" 
                             min="0" 
-                            max={currentTranslationStyle.densityMode === 'percent' ? 100 : 50} 
+                            max={currentConfig.densityMode === 'percent' ? 100 : 50} 
                             step="1"
-                            value={currentTranslationStyle.densityValue}
-                            onChange={(e) => updateTranslationStyle('densityValue', parseInt(e.target.value))}
+                            value={currentConfig.densityValue}
+                            onChange={(e) => updateCurrentConfig({densityValue: parseInt(e.target.value)})}
                             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                           />
                           <div 
                              className="absolute w-4 h-4 bg-white border-2 border-blue-600 rounded-full shadow pointer-events-none transition-all"
-                             style={{left: `${currentTranslationStyle.densityMode === 'percent' ? currentTranslationStyle.densityValue : Math.min(100, (currentTranslationStyle.densityValue / 50) * 100)}%`, transform: 'translateX(-50%)'}}
+                             style={{left: `${currentConfig.densityMode === 'percent' ? currentConfig.densityValue : Math.min(100, (currentConfig.densityValue / 50) * 100)}%`, transform: 'translateX(-50%)'}}
                           ></div>
                       </div>
                       
                       <div className="flex items-center border border-slate-200 rounded-lg bg-white px-3 py-1.5 min-w-[80px]">
                           <input 
                             type="number" 
-                            value={currentTranslationStyle.densityValue}
-                            onChange={(e) => updateTranslationStyle('densityValue', Math.max(0, parseInt(e.target.value) || 0))}
+                            value={currentConfig.densityValue}
+                            onChange={(e) => updateCurrentConfig({densityValue: Math.max(0, parseInt(e.target.value) || 0)})}
                             className="w-full text-right font-bold text-slate-700 outline-none text-sm mr-1"
                           />
                           <span className="text-xs text-slate-400 font-medium">
-                              {currentTranslationStyle.densityMode === 'percent' ? '%' : '个'}
+                              {currentConfig.densityMode === 'percent' ? '%' : '个'}
                           </span>
                       </div>
                   </div>

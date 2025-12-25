@@ -4,6 +4,7 @@ import { getStyleStr } from "./style-helper";
 
 /**
  * Builds the HTML string for a replaced word, applying layout and styles.
+ * NOW USES: Category-specific layout settings from StyleConfig.
  */
 export const buildReplacementHtml = (
     targetChinese: string, 
@@ -11,11 +12,15 @@ export const buildReplacementHtml = (
     category: WordCategory,
     styles: Record<WordCategory, StyleConfig>,
     originalTextConfig: OriginalTextConfig,
-    entryId: string // Added entryId for interaction
+    entryId: string
 ): string => {
-    const transStyle = styles[category];
-    const origStyle = originalTextConfig.style;
-    const activeLayout = originalTextConfig.activeMode === 'horizontal' ? originalTextConfig.horizontal : originalTextConfig.vertical;
+    const styleConfig = styles[category];
+    
+    // Fallbacks if new structure is missing (e.g., old storage data)
+    const layoutMode = styleConfig.layoutMode || 'horizontal';
+    const activeLayout = layoutMode === 'horizontal' 
+        ? (styleConfig.horizontal || { translationFirst: false, wrappers: { translation: {prefix:'', suffix:''}, original: {prefix:'(', suffix:')'} } })
+        : (styleConfig.vertical || { translationFirst: true, baselineTarget: 'translation', wrappers: { translation: {prefix:'', suffix:''}, original: {prefix:'', suffix:''} } });
 
     // Wrappers
     const transPrefix = activeLayout.wrappers.translation.prefix;
@@ -23,15 +28,26 @@ export const buildReplacementHtml = (
     const origPrefix = activeLayout.wrappers.original.prefix;
     const origSuffix = activeLayout.wrappers.original.suffix;
 
-    const isVertical = originalTextConfig.activeMode === 'vertical';
+    const isVertical = layoutMode === 'vertical';
     
     // Determine baseline roles for Vertical mode
     const baselineTarget = activeLayout.baselineTarget || 'original';
     const isTransBase = baselineTarget === 'translation';
 
     // Style Overrides for Vertical Alignment
+    const transBaseStyle = getStyleStr(styleConfig);
     
-    const transBaseStyle = getStyleStr(transStyle);
+    // Construct Original Text Style based on isolated config
+    const origStyle = {
+        color: styleConfig.originalTextColor || '#94a3b8',
+        fontSize: styleConfig.originalTextFontSize || '0.85em',
+        backgroundColor: 'transparent',
+        isBold: false, 
+        isItalic: false,
+        underlineStyle: 'none',
+        underlineColor: 'transparent',
+        underlineOffset: '0px'
+    } as StyleConfig;
     const origBaseStyle = getStyleStr(origStyle);
 
     let transOverride = '';
@@ -40,8 +56,7 @@ export const buildReplacementHtml = (
     if (isVertical) {
         if (isTransBase) {
             // Translation is Base
-            // Force font-size to ensure it sticks, overriding any potential inheritance issues or defaults
-            transOverride = `line-height: normal; vertical-align: baseline; font-size: ${transStyle.fontSize};`;
+            transOverride = `line-height: normal; vertical-align: baseline; font-size: ${styleConfig.fontSize};`;
             // Original is RT -> Compact
             origOverride = 'line-height: 1;'; 
         } else {
@@ -53,7 +68,6 @@ export const buildReplacementHtml = (
     }
 
     // 1. Translation Element
-    // Added data-entry-id and removed title attribute
     const transInner = `<span style="${transBaseStyle} border-bottom: 2px solid transparent; ${transOverride}" 
        class="context-lingo-target"
        data-entry-id="${entryId}"
@@ -73,11 +87,10 @@ export const buildReplacementHtml = (
         return `<span class="context-lingo-wrapper" style="margin: 0; padding: 0; display: inline;">${transInner}</span>`;
     }
 
-    if (originalTextConfig.activeMode === 'horizontal') {
+    if (layoutMode === 'horizontal') {
         const first = activeLayout.translationFirst ? transInner : origInner;
         const second = activeLayout.translationFirst ? origInner : transInner;
         
-        // Use display: inline to prevent justification gaps
         return `<span class="context-lingo-wrapper" style="margin: 0; padding: 0; display: inline;">${first}${second}</span>`;
     } else {
         // Vertical Layout (Ruby)
@@ -85,24 +98,14 @@ export const buildReplacementHtml = (
         const rtInner = isTransBase ? origInner : transInner;
 
         let rubyPosition = 'over';
-        
         if (activeLayout.translationFirst) {
-            // Visual Order: Trans (Top) -> Orig (Bottom)
-            if (isTransBase) {
-                rubyPosition = 'under';
-            } else {
-                rubyPosition = 'over';
-            }
+            if (isTransBase) rubyPosition = 'under';
+            else rubyPosition = 'over';
         } else {
-            // Visual Order: Orig (Top) -> Trans (Bottom)
-            if (isTransBase) {
-                rubyPosition = 'over';
-            } else {
-                rubyPosition = 'under';
-            }
+            if (isTransBase) rubyPosition = 'over';
+            else rubyPosition = 'under';
         }
 
-        // ruby-align: start and text-align: left are crucial for fixing left whitespace
         return `<ruby class="context-lingo-wrapper" style="ruby-position: ${rubyPosition}; margin: 0; padding: 0; ruby-align: start; -webkit-ruby-align: start; text-align: left;">${baseInner}<rt style="font-size: 100%; font-family: inherit;">${rtInner}</rt></ruby>`;
     }
 };
