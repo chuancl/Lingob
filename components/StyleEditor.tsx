@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { WordCategory, StyleConfig, OriginalTextConfig, LayoutSpecificConfig } from '../types';
 import { Bold, Italic, MoveHorizontal, MoveVertical, AlignEndHorizontal, Percent, Hash, Info, AlignVerticalJustifyCenter, Type } from 'lucide-react';
 import { getStyleStr } from '../utils/style-helper';
+import { DEFAULT_STYLE } from '../constants';
 
 const Tooltip: React.FC<{ text: string; children: React.ReactNode }> = ({ text, children }) => {
   return (
@@ -26,7 +27,13 @@ interface VisualStylesSectionProps {
 export const VisualStylesSection: React.FC<VisualStylesSectionProps> = ({ styles, onStylesChange, originalTextConfig, onOriginalTextConfigChange }) => {
   const [activeTab, setActiveTab] = useState<WordCategory>(Object.values(WordCategory)[0]);
 
-  const currentConfig = styles[activeTab];
+  // Fallback to DEFAULT_STYLE if activeTab entry is missing or undefined (though Record guarantees key presence, runtime data might vary)
+  const currentConfig = styles[activeTab] || DEFAULT_STYLE;
+
+  // Safe accessors for nested properties to prevent crashes on old data
+  const safeLayoutMode = currentConfig.layoutMode || 'horizontal';
+  const safeHorizontal = currentConfig.horizontal || DEFAULT_STYLE.horizontal;
+  const safeVertical = currentConfig.vertical || DEFAULT_STYLE.vertical;
 
   const updateCurrentConfig = (updates: Partial<StyleConfig>) => {
     onStylesChange({
@@ -36,7 +43,7 @@ export const VisualStylesSection: React.FC<VisualStylesSectionProps> = ({ styles
   };
 
   const updateLayoutConfig = (mode: 'horizontal' | 'vertical', field: string, value: any, subField?: string) => {
-     const currentModeConfig = currentConfig[mode];
+     const currentModeConfig = mode === 'horizontal' ? safeHorizontal : safeVertical;
      let newModeConfig: LayoutSpecificConfig = { ...currentModeConfig };
      
      if (field === 'wrappers' && subField) {
@@ -60,9 +67,9 @@ export const VisualStylesSection: React.FC<VisualStylesSectionProps> = ({ styles
     const replacementText = "remember";
     const originalText = "记住";
 
-    // Use current active config for preview
-    const layoutMode = currentConfig.layoutMode;
-    const activeLayout = layoutMode === 'horizontal' ? currentConfig.horizontal : currentConfig.vertical;
+    // Use safe values
+    const layoutMode = safeLayoutMode;
+    const activeLayout = layoutMode === 'horizontal' ? safeHorizontal : safeVertical;
     const isVertical = layoutMode === 'vertical';
     const baselineTarget = activeLayout.baselineTarget || 'original';
     const isTransBase = baselineTarget === 'translation';
@@ -313,35 +320,35 @@ export const VisualStylesSection: React.FC<VisualStylesSectionProps> = ({ styles
                         <div className="grid grid-cols-2 gap-4">
                             <button 
                                 onClick={() => updateCurrentConfig({layoutMode: 'horizontal'})}
-                                className={`p-4 rounded-xl border-2 transition-all text-left relative ${currentConfig.layoutMode === 'horizontal' ? 'border-blue-500 bg-blue-50/50' : 'border-slate-100 hover:border-blue-200'}`}
+                                className={`p-4 rounded-xl border-2 transition-all text-left relative ${safeLayoutMode === 'horizontal' ? 'border-blue-500 bg-blue-50/50' : 'border-slate-100 hover:border-blue-200'}`}
                             >
                                 <MoveHorizontal className="w-5 h-5 mb-2 text-slate-500" />
                                 <div className="text-xs font-bold text-slate-700">水平布局</div>
-                                {currentConfig.layoutMode === 'horizontal' && <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-blue-500"></div>}
+                                {safeLayoutMode === 'horizontal' && <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-blue-500"></div>}
                             </button>
                             <button 
                                 onClick={() => updateCurrentConfig({layoutMode: 'vertical'})}
-                                className={`p-4 rounded-xl border-2 transition-all text-left relative ${currentConfig.layoutMode === 'vertical' ? 'border-blue-500 bg-blue-50/50' : 'border-slate-100 hover:border-blue-200'}`}
+                                className={`p-4 rounded-xl border-2 transition-all text-left relative ${safeLayoutMode === 'vertical' ? 'border-blue-500 bg-blue-50/50' : 'border-slate-100 hover:border-blue-200'}`}
                             >
                                 <MoveVertical className="w-5 h-5 mb-2 text-slate-500" />
                                 <div className="text-xs font-bold text-slate-700">垂直堆叠</div>
-                                {currentConfig.layoutMode === 'vertical' && <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-blue-500"></div>}
+                                {safeLayoutMode === 'vertical' && <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-blue-500"></div>}
                             </button>
                         </div>
 
                         {/* Detail Builder */}
                         <div className="bg-white border border-slate-200 rounded-lg p-4 relative">
-                            {currentConfig.layoutMode === 'horizontal' ? (
+                            {safeLayoutMode === 'horizontal' ? (
                                 // Horizontal Builder
                                 <div className="flex items-center justify-center overflow-x-auto py-2">
                                     <div className="flex items-center">
                                     <WrapperInput 
-                                        value={currentConfig.horizontal.translationFirst ? currentConfig.horizontal.wrappers.translation.prefix : currentConfig.horizontal.wrappers.original.prefix}
-                                        onChange={v => updateLayoutConfig('horizontal', 'wrappers', v, currentConfig.horizontal.translationFirst ? 'translation.prefix' : 'original.prefix')}
-                                        placeholder={currentConfig.horizontal.translationFirst ? "" : "("}
+                                        value={safeHorizontal.translationFirst ? safeHorizontal.wrappers.translation.prefix : safeHorizontal.wrappers.original.prefix}
+                                        onChange={v => updateLayoutConfig('horizontal', 'wrappers', v, safeHorizontal.translationFirst ? 'translation.prefix' : 'original.prefix')}
+                                        placeholder={safeHorizontal.translationFirst ? "" : "("}
                                     />
                                     <select 
-                                        value={currentConfig.horizontal.translationFirst ? 'translation' : 'original'}
+                                        value={safeHorizontal.translationFirst ? 'translation' : 'original'}
                                         onChange={e => updateLayoutConfig('horizontal', 'translationFirst', e.target.value === 'translation')}
                                         className="text-xs py-1 px-2 border-slate-200 bg-slate-50 rounded min-w-[60px] mx-1"
                                     >
@@ -349,25 +356,25 @@ export const VisualStylesSection: React.FC<VisualStylesSectionProps> = ({ styles
                                         <option value="original">原文</option>
                                     </select>
                                     <WrapperInput 
-                                        value={currentConfig.horizontal.translationFirst ? currentConfig.horizontal.wrappers.translation.suffix : currentConfig.horizontal.wrappers.original.suffix}
-                                        onChange={v => updateLayoutConfig('horizontal', 'wrappers', v, currentConfig.horizontal.translationFirst ? 'translation.suffix' : 'original.suffix')}
-                                        placeholder={currentConfig.horizontal.translationFirst ? "" : ")"}
+                                        value={safeHorizontal.translationFirst ? safeHorizontal.wrappers.translation.suffix : safeHorizontal.wrappers.original.suffix}
+                                        onChange={v => updateLayoutConfig('horizontal', 'wrappers', v, safeHorizontal.translationFirst ? 'translation.suffix' : 'original.suffix')}
+                                        placeholder={safeHorizontal.translationFirst ? "" : ")"}
                                     />
                                     </div>
                                     <span className="text-slate-300 mx-2">|</span>
                                     <div className="flex items-center">
                                     <WrapperInput 
-                                        value={currentConfig.horizontal.translationFirst ? currentConfig.horizontal.wrappers.original.prefix : currentConfig.horizontal.wrappers.translation.prefix}
-                                        onChange={v => updateLayoutConfig('horizontal', 'wrappers', v, currentConfig.horizontal.translationFirst ? 'original.prefix' : 'translation.prefix')}
-                                        placeholder={currentConfig.horizontal.translationFirst ? "(" : ""}
+                                        value={safeHorizontal.translationFirst ? safeHorizontal.wrappers.original.prefix : safeHorizontal.wrappers.translation.prefix}
+                                        onChange={v => updateLayoutConfig('horizontal', 'wrappers', v, safeHorizontal.translationFirst ? 'original.prefix' : 'translation.prefix')}
+                                        placeholder={safeHorizontal.translationFirst ? "(" : ""}
                                     />
                                     <div className="text-xs py-1.5 px-3 bg-slate-100 text-slate-500 rounded border border-slate-200 min-w-[60px] text-center select-none mx-1">
-                                        {currentConfig.horizontal.translationFirst ? '原文' : '译文'}
+                                        {safeHorizontal.translationFirst ? '原文' : '译文'}
                                     </div>
                                     <WrapperInput 
-                                        value={currentConfig.horizontal.translationFirst ? currentConfig.horizontal.wrappers.original.suffix : currentConfig.horizontal.wrappers.translation.suffix}
-                                        onChange={v => updateLayoutConfig('horizontal', 'wrappers', v, currentConfig.horizontal.translationFirst ? 'original.suffix' : 'translation.suffix')}
-                                        placeholder={currentConfig.horizontal.translationFirst ? ")" : ""}
+                                        value={safeHorizontal.translationFirst ? safeHorizontal.wrappers.original.suffix : safeHorizontal.wrappers.translation.suffix}
+                                        onChange={v => updateLayoutConfig('horizontal', 'wrappers', v, safeHorizontal.translationFirst ? 'original.suffix' : 'translation.suffix')}
+                                        placeholder={safeHorizontal.translationFirst ? ")" : ""}
                                     />
                                     </div>
                                 </div>
@@ -377,11 +384,11 @@ export const VisualStylesSection: React.FC<VisualStylesSectionProps> = ({ styles
                                     <div className="flex items-center justify-center gap-1">
                                         <span className="text-[10px] text-slate-400 w-8 text-right">Top</span>
                                         <WrapperInput 
-                                            value={currentConfig.vertical.translationFirst ? currentConfig.vertical.wrappers.translation.prefix : currentConfig.vertical.wrappers.original.prefix}
-                                            onChange={v => updateLayoutConfig('vertical', 'wrappers', v, currentConfig.vertical.translationFirst ? 'translation.prefix' : 'original.prefix')}
+                                            value={safeVertical.translationFirst ? safeVertical.wrappers.translation.prefix : safeVertical.wrappers.original.prefix}
+                                            onChange={v => updateLayoutConfig('vertical', 'wrappers', v, safeVertical.translationFirst ? 'translation.prefix' : 'original.prefix')}
                                         />
                                         <select 
-                                            value={currentConfig.vertical.translationFirst ? 'translation' : 'original'}
+                                            value={safeVertical.translationFirst ? 'translation' : 'original'}
                                             onChange={e => updateLayoutConfig('vertical', 'translationFirst', e.target.value === 'translation')}
                                             className="text-xs py-1 px-2 border-slate-200 bg-slate-50 rounded min-w-[70px]"
                                         >
@@ -389,29 +396,29 @@ export const VisualStylesSection: React.FC<VisualStylesSectionProps> = ({ styles
                                             <option value="original">原文(上)</option>
                                         </select>
                                         <WrapperInput 
-                                            value={currentConfig.vertical.translationFirst ? currentConfig.vertical.wrappers.translation.suffix : currentConfig.vertical.wrappers.original.suffix}
-                                            onChange={v => updateLayoutConfig('vertical', 'wrappers', v, currentConfig.vertical.translationFirst ? 'translation.suffix' : 'original.suffix')}
+                                            value={safeVertical.translationFirst ? safeVertical.wrappers.translation.suffix : safeVertical.wrappers.original.suffix}
+                                            onChange={v => updateLayoutConfig('vertical', 'wrappers', v, safeVertical.translationFirst ? 'translation.suffix' : 'original.suffix')}
                                         />
                                     </div>
                                     <div className="flex items-center justify-center gap-1">
                                         <span className="text-[10px] text-slate-400 w-8 text-right">Bottom</span>
                                         <WrapperInput 
-                                            value={currentConfig.vertical.translationFirst ? currentConfig.vertical.wrappers.original.prefix : currentConfig.vertical.wrappers.translation.prefix}
-                                            onChange={v => updateLayoutConfig('vertical', 'wrappers', v, currentConfig.vertical.translationFirst ? 'original.prefix' : 'translation.prefix')}
+                                            value={safeVertical.translationFirst ? safeVertical.wrappers.original.prefix : safeVertical.wrappers.translation.prefix}
+                                            onChange={v => updateLayoutConfig('vertical', 'wrappers', v, safeVertical.translationFirst ? 'original.prefix' : 'translation.prefix')}
                                         />
                                         <div className="text-xs py-1.5 px-3 bg-slate-100 text-slate-500 rounded border border-slate-200 min-w-[70px] text-center select-none">
-                                            {currentConfig.vertical.translationFirst ? '原文(下)' : '译文(下)'}
+                                            {safeVertical.translationFirst ? '原文(下)' : '译文(下)'}
                                         </div>
                                         <WrapperInput 
-                                            value={currentConfig.vertical.translationFirst ? currentConfig.vertical.wrappers.original.suffix : currentConfig.vertical.wrappers.translation.suffix}
-                                            onChange={v => updateLayoutConfig('vertical', 'wrappers', v, currentConfig.vertical.translationFirst ? 'original.suffix' : 'translation.suffix')}
+                                            value={safeVertical.translationFirst ? safeVertical.wrappers.original.suffix : safeVertical.wrappers.translation.suffix}
+                                            onChange={v => updateLayoutConfig('vertical', 'wrappers', v, safeVertical.translationFirst ? 'original.suffix' : 'translation.suffix')}
                                         />
                                     </div>
                                     <div className="border-t border-slate-100 pt-3 flex items-center justify-center gap-3">
                                         <span className="text-xs font-bold text-slate-500 flex items-center"><AlignVerticalJustifyCenter className="w-3 h-3 mr-1"/> 对齐基准</span>
                                         <div className="flex gap-2">
-                                            <button onClick={() => updateLayoutConfig('vertical', 'baselineTarget', 'original')} className={`px-2 py-1 text-[10px] rounded border ${currentConfig.vertical.baselineTarget === 'original' ? 'bg-blue-50 border-blue-200 text-blue-600 font-bold' : 'bg-slate-50 border-slate-200'}`}>原文齐平</button>
-                                            <button onClick={() => updateLayoutConfig('vertical', 'baselineTarget', 'translation')} className={`px-2 py-1 text-[10px] rounded border ${currentConfig.vertical.baselineTarget === 'translation' ? 'bg-blue-50 border-blue-200 text-blue-600 font-bold' : 'bg-slate-50 border-slate-200'}`}>译文齐平</button>
+                                            <button onClick={() => updateLayoutConfig('vertical', 'baselineTarget', 'original')} className={`px-2 py-1 text-[10px] rounded border ${safeVertical.baselineTarget === 'original' ? 'bg-blue-50 border-blue-200 text-blue-600 font-bold' : 'bg-slate-50 border-slate-200'}`}>原文齐平</button>
+                                            <button onClick={() => updateLayoutConfig('vertical', 'baselineTarget', 'translation')} className={`px-2 py-1 text-[10px] rounded border ${safeVertical.baselineTarget === 'translation' ? 'bg-blue-50 border-blue-200 text-blue-600 font-bold' : 'bg-slate-50 border-slate-200'}`}>译文齐平</button>
                                         </div>
                                     </div>
                                 </div>
@@ -464,7 +471,7 @@ export const VisualStylesSection: React.FC<VisualStylesSectionProps> = ({ styles
                           <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
                               <div 
                                 className="h-full bg-blue-500 rounded-full" 
-                                style={{width: `${currentConfig.densityMode === 'percent' ? currentConfig.densityValue : Math.min(100, (currentConfig.densityValue / 50) * 100)}%`}}
+                                style={{width: `${currentConfig.densityMode === 'percent' ? (currentConfig.densityValue ?? 100) : Math.min(100, ((currentConfig.densityValue ?? 100) / 50) * 100)}%`}}
                               ></div>
                           </div>
                           <input 
@@ -472,20 +479,20 @@ export const VisualStylesSection: React.FC<VisualStylesSectionProps> = ({ styles
                             min="0" 
                             max={currentConfig.densityMode === 'percent' ? 100 : 50} 
                             step="1"
-                            value={currentConfig.densityValue}
+                            value={currentConfig.densityValue ?? 100}
                             onChange={(e) => updateCurrentConfig({densityValue: parseInt(e.target.value)})}
                             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                           />
                           <div 
                              className="absolute w-4 h-4 bg-white border-2 border-blue-600 rounded-full shadow pointer-events-none transition-all"
-                             style={{left: `${currentConfig.densityMode === 'percent' ? currentConfig.densityValue : Math.min(100, (currentConfig.densityValue / 50) * 100)}%`, transform: 'translateX(-50%)'}}
+                             style={{left: `${currentConfig.densityMode === 'percent' ? (currentConfig.densityValue ?? 100) : Math.min(100, ((currentConfig.densityValue ?? 100) / 50) * 100)}%`, transform: 'translateX(-50%)'}}
                           ></div>
                       </div>
                       
                       <div className="flex items-center border border-slate-200 rounded-lg bg-white px-3 py-1.5 min-w-[80px]">
                           <input 
                             type="number" 
-                            value={currentConfig.densityValue}
+                            value={currentConfig.densityValue ?? 100}
                             onChange={(e) => updateCurrentConfig({densityValue: Math.max(0, parseInt(e.target.value) || 0)})}
                             className="w-full text-right font-bold text-slate-700 outline-none text-sm mr-1"
                           />
