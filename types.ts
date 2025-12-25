@@ -35,12 +35,12 @@ export interface StyleConfig {
   fontSize: string;
   opacity?: number; 
   
-  // --- Layout Isolation (New) ---
+  // --- Layout Isolation (Moved from Global) ---
   layoutMode: 'horizontal' | 'vertical';
   horizontal: LayoutSpecificConfig;
   vertical: LayoutSpecificConfig;
 
-  // --- Original Text Styles (New) ---
+  // --- Original Text Styles (Moved from Global) ---
   originalTextColor: string;
   originalTextFontSize: string;
 
@@ -50,13 +50,8 @@ export interface StyleConfig {
 }
 
 export interface OriginalTextConfig {
-  show: boolean;
-  // Deprecated fields kept for migration safety if needed, but logic moved to StyleConfig
-  activeMode?: 'horizontal' | 'vertical'; 
-  bracketsTarget?: 'translation' | 'original';
-  horizontal?: LayoutSpecificConfig;
-  vertical?: LayoutSpecificConfig;
-  style?: any; 
+  show: boolean; // Master toggle
+  // Deprecated fields are removed or ignored, logic moved to StyleConfig
 }
 
 export interface PhraseItem {
