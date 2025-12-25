@@ -48,6 +48,7 @@ export const PreviewSection: React.FC<PreviewSectionProps> = ({ engines, entries
             }
 
             // STEP 2: Fuzzy Matching with Context Verification
+            // Note: findFuzzyMatches v2 takes the translated text as the 3rd argument
             const finalMatches = findFuzzyMatches(inputText, entries, apiResult);
 
             // STEP 3: Render Mixed Text
@@ -58,7 +59,6 @@ export const PreviewSection: React.FC<PreviewSectionProps> = ({ engines, entries
             if (sortedEntries.length === 0) {
                  mixedContent = <span>{inputText}</span>;
             } else {
-                // Simple splitting for preview (doesn't handle complex overlap perfect, but enough for visual check)
                 const escapeRegExp = (string: string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
                 const pattern = new RegExp(`(${sortedEntries.map(e => escapeRegExp(e.text)).join('|')})`, 'g');
                 const parts = inputText.split(pattern);
@@ -68,7 +68,7 @@ export const PreviewSection: React.FC<PreviewSectionProps> = ({ engines, entries
                         {parts.map((part, idx) => {
                             const match = sortedEntries.find(e => e.text === part);
                             if (match) {
-                                // Now passing the category-specific style logic
+                                // Using buildReplacementHtml to ensure preview matches actual content script logic exactly
                                 const html = buildReplacementHtml(
                                     match.text,
                                     match.entry.text,

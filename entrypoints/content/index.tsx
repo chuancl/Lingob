@@ -1,4 +1,3 @@
-
 import ReactDOM from 'react-dom/client';
 import React, { useState, useEffect, useRef } from 'react';
 import { PageWidget } from '../../components/PageWidget';
@@ -13,7 +12,6 @@ import { buildReplacementHtml } from '../../utils/dom-builder';
 import { browser } from 'wxt/browser';
 import { preloadVoices, unlockAudio } from '../../utils/audio';
 import { splitTextIntoSentences, normalizeEnglishText } from '../../utils/text-processing';
-import { DEFAULT_STYLE } from '../../constants';
 
 interface ContentOverlayProps {
   initialWidgetConfig: PageWidgetConfig;
@@ -239,7 +237,6 @@ export default defineContentScript({
     autoTranslateConfigStorage.watch(v => { if(v) currentAutoTranslate = v; });
     entriesStorage.watch(v => { if(v) currentEntries = v; });
     enginesStorage.watch(v => { if(v) currentEngines = v; });
-    stylesStorage.watch(v => { if(v) currentStyles = v; });
 
     /**
      * 应用替换逻辑
@@ -260,8 +257,7 @@ export default defineContentScript({
             fullText += val;
         });
 
-        // --- 1. Find All Potential Matches First ---
-        const allMatches: { start: number, end: number, entry: WordEntry, matchedWord: string }[] = [];
+        const replacements: { start: number, end: number, entry: WordEntry, matchedWord: string }[] = [];
         let searchCursor = 0;
         
         for (let idx = 0; idx < sourceSentences.length; idx++) {
@@ -272,17 +268,17 @@ export default defineContentScript({
             const sentEnd = sentStart + sent.length;
             searchCursor = sentEnd;
 
-            // 1a. Normal Fuzzy Match
-            const fuzzy = findFuzzyMatches(sent, currentEntries, trans);
-            fuzzy.forEach(m => {
+            // 1. 正常匹配 (含词态)
+            const matches = findFuzzyMatches(sent, currentEntries, trans);
+            matches.forEach(m => {
                 let localPos = sent.indexOf(m.text);
                 while (localPos !== -1) {
-                    allMatches.push({ start: sentStart + localPos, end: sentStart + localPos + m.text.length, entry: m.entry, matchedWord: m.matchedWord });
+                    replacements.push({ start: sentStart + localPos, end: sentStart + localPos + m.text.length, entry: m.entry, matchedWord: m.matchedWord });
                     localPos = sent.indexOf(m.text, localPos + 1);
                 }
             });
 
-            // 1b. Aggressive Match
+            // 2. 激进匹配
             if (currentAutoTranslate.aggressiveMode) {
                 const normTrans = normalizeEnglishText(trans);
                 const potentials = currentEntries.filter(e => normTrans.includes(e.text.toLowerCase()));
@@ -293,7 +289,7 @@ export default defineContentScript({
                         aggMatches.forEach(m => {
                             let localPos = sent.indexOf(m.text);
                             while (localPos !== -1) {
-                                allMatches.push({ start: sentStart + localPos, end: sentStart + localPos + m.text.length, entry: m.entry, matchedWord: m.matchedWord });
+                                replacements.push({ start: sentStart + localPos, end: sentStart + localPos + m.text.length, entry: m.entry, matchedWord: m.matchedWord });
                                 localPos = sent.indexOf(m.text, localPos + 1);
                             }
                         });
@@ -302,48 +298,9 @@ export default defineContentScript({
             }
         }
 
-        // --- 2. Density Filtering (Per Block/Sentence Group) ---
-        // Count totals per category for this text block
-        const categoryCounts: Record<string, number> = {};
-        allMatches.forEach(r => {
-            const cat = r.entry.category;
-            categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
-        });
-
-        // Determine allowance per category based on settings
-        const categoryAllowances: Record<string, number> = {};
-        Object.keys(categoryCounts).forEach(cat => {
-            const style = currentStyles[cat as WordCategory] || DEFAULT_STYLE;
-            const total = categoryCounts[cat];
-            
-            if (style.densityMode === 'count') {
-                categoryAllowances[cat] = style.densityValue;
-            } else {
-                // Percentage based
-                categoryAllowances[cat] = Math.ceil(total * (style.densityValue / 100));
-            }
-        });
-
-        // Filter based on allowance
-        const categoryCurrentCount: Record<string, number> = {};
-        const filteredMatches = allMatches.filter(r => {
-            const cat = r.entry.category;
-            const allowed = categoryAllowances[cat];
-            const current = categoryCurrentCount[cat] || 0;
-            
-            if (current < allowed) {
-                categoryCurrentCount[cat] = current + 1;
-                return true;
-            }
-            return false;
-        });
-
-        // --- 3. Apply Replacements ---
-        filteredMatches.sort((a, b) => b.start - a.start);
-        
+        replacements.sort((a, b) => b.start - a.start);
         let lastStart = Number.MAX_VALUE;
-        filteredMatches.forEach(r => {
-            // Avoid overlaps (simple greedy)
+        replacements.forEach(r => {
             if (r.end <= lastStart) {
                 const target = nodeMap.find(n => r.start >= n.start && r.end <= n.end);
                 if (target) {
@@ -352,7 +309,6 @@ export default defineContentScript({
                     const mid = val.substring(r.start - start, r.end - start);
                     const span = document.createElement('span');
                     span.className = 'context-lingo-word';
-                    // Pass specific styles to dom builder
                     span.innerHTML = buildReplacementHtml(mid, r.matchedWord, r.entry.category, currentStyles, currentOriginalTextConfig, r.entry.id);
                     node.parentNode?.insertBefore(document.createTextNode(val.substring(r.end - start)), node.nextSibling);
                     node.parentNode?.insertBefore(span, node.nextSibling);

@@ -9,7 +9,7 @@ import { PreviewSection } from './components/settings/PreviewSection';
 import { WordDetail } from './components/WordDetail'; // Import new component
 import { Loader2 } from 'lucide-react';
 import { AppView, SettingSectionId, Scenario, WordEntry, PageWidgetConfig, WordInteractionConfig, TranslationEngine, AnkiConfig, AutoTranslateConfig, StyleConfig, WordCategory, OriginalTextConfig, DictionaryEngine, WordTab } from './types';
-import { DEFAULT_STYLES, DEFAULT_STYLE, DEFAULT_ORIGINAL_TEXT_CONFIG, DEFAULT_WORD_INTERACTION, DEFAULT_PAGE_WIDGET, INITIAL_ENGINES, DEFAULT_ANKI_CONFIG, DEFAULT_AUTO_TRANSLATE, INITIAL_SCENARIOS, INITIAL_DICTIONARIES } from './constants';
+import { DEFAULT_STYLES, DEFAULT_ORIGINAL_TEXT_CONFIG, DEFAULT_WORD_INTERACTION, DEFAULT_PAGE_WIDGET, INITIAL_ENGINES, DEFAULT_ANKI_CONFIG, DEFAULT_AUTO_TRANSLATE, INITIAL_SCENARIOS, INITIAL_DICTIONARIES } from './constants';
 import { entriesStorage, scenariosStorage, pageWidgetConfigStorage, autoTranslateConfigStorage, enginesStorage, ankiConfigStorage, seedInitialData, stylesStorage, originalTextConfigStorage, interactionConfigStorage, dictionariesStorage } from './utils/storage';
 import { preloadVoices } from './utils/audio';
 
@@ -101,39 +101,13 @@ const App: React.FC = () => {
           }
       }
 
-      // Data Migration: Styles Config
-      const finalStyles = { ...sty };
-      let stylesChanged = false;
-      Object.values(WordCategory).forEach(cat => {
-          const s = finalStyles[cat];
-          // Check for missing new fields (layoutMode, horizontal, vertical)
-          if (!s || !s.horizontal || !s.vertical || s.densityValue === undefined) {
-              finalStyles[cat] = {
-                  ...DEFAULT_STYLE, // Base Defaults
-                  ...s, // Keep existing color/bold/etc
-                  // Force new fields if missing
-                  layoutMode: s?.layoutMode || DEFAULT_STYLE.layoutMode,
-                  horizontal: s?.horizontal || DEFAULT_STYLE.horizontal,
-                  vertical: s?.vertical || DEFAULT_STYLE.vertical,
-                  originalTextColor: s?.originalTextColor || DEFAULT_STYLE.originalTextColor,
-                  originalTextFontSize: s?.originalTextFontSize || DEFAULT_STYLE.originalTextFontSize,
-                  densityMode: s?.densityMode || DEFAULT_STYLE.densityMode,
-                  densityValue: s?.densityValue ?? DEFAULT_STYLE.densityValue,
-              };
-              stylesChanged = true;
-          }
-      });
-      if (stylesChanged) {
-          await stylesStorage.setValue(finalStyles);
-      }
-
       setScenarios(s);
       setEntries(e);
       setPageWidgetConfig(p);
       setAutoTranslate(a);
       setEngines(eng);
       setAnkiConfig(finalAnkiConfig);
-      setStyles(finalStyles);
+      setStyles(sty);
       setOriginalTextConfig(orig);
       setInteractionConfig(interact);
       setIsLoading(false);

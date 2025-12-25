@@ -1,23 +1,4 @@
-
 import { StyleConfig, WordCategory, Scenario, TranslationEngine, WordInteractionConfig, PageWidgetConfig, AnkiConfig, OriginalTextConfig, MergeStrategyConfig, AutoTranslateConfig, DictionaryEngine } from './types';
-
-// Default Layout settings reused in DEFAULT_STYLE
-const DEFAULT_HORIZONTAL_CONFIG = {
-    translationFirst: false, // Original Last
-    wrappers: {
-      translation: { prefix: '', suffix: '' },
-      original: { prefix: '(', suffix: ')' }
-    }
-};
-
-const DEFAULT_VERTICAL_CONFIG = {
-    translationFirst: true, // Translation Top
-    baselineTarget: 'translation' as const, 
-    wrappers: {
-      translation: { prefix: '', suffix: '' },
-      original: { prefix: '', suffix: '' }
-    }
-};
 
 export const DEFAULT_STYLE: StyleConfig = {
   color: '#000000',
@@ -29,23 +10,30 @@ export const DEFAULT_STYLE: StyleConfig = {
   isItalic: false,
   fontSize: '1em',
   opacity: 1,
-  
-  // Density
   densityMode: 'percent',
   densityValue: 100,
-
-  // Layout & Original Text (New Isolated Fields)
-  layoutMode: 'horizontal',
-  horizontal: DEFAULT_HORIZONTAL_CONFIG,
-  vertical: DEFAULT_VERTICAL_CONFIG,
-  originalTextColor: '#94a3b8',
-  originalTextFontSize: '0.85em',
 };
 
-// Deprecated essentially, but kept for "Global Switch" if needed
 export const DEFAULT_ORIGINAL_TEXT_CONFIG: OriginalTextConfig = {
   show: true,
-  // Old fields mostly ignored now in favor of per-category StyleConfig
+  activeMode: 'horizontal',
+  bracketsTarget: 'original',
+  horizontal: {
+    translationFirst: false, // Original Last
+    wrappers: {
+      translation: { prefix: '', suffix: '' },
+      original: { prefix: '(', suffix: ')' }
+    }
+  },
+  vertical: {
+    translationFirst: true, // Translation Top
+    baselineTarget: 'translation', // Default: English sits on baseline
+    wrappers: {
+      translation: { prefix: '', suffix: '' },
+      original: { prefix: '', suffix: '' }
+    }
+  },
+  style: { ...DEFAULT_STYLE, color: '#94a3b8', fontSize: '0.85em' }
 };
 
 export const DEFAULT_STYLES: Record<WordCategory, StyleConfig> = {

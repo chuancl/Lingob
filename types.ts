@@ -1,4 +1,3 @@
-
 export enum WordCategory {
   KnownWord = '已掌握单词',
   WantToLearnWord = '想学习单词',
@@ -7,6 +6,21 @@ export enum WordCategory {
 
 // Helper type for UI tabs
 export type WordTab = WordCategory | 'all';
+
+export interface StyleConfig {
+  color: string;
+  backgroundColor: string;
+  underlineStyle: 'solid' | 'dashed' | 'dotted' | 'double' | 'wavy' | 'none';
+  underlineColor: string;
+  underlineOffset: string;
+  isBold: boolean;
+  isItalic: boolean;
+  fontSize: string;
+  opacity?: number; 
+  // Density Settings
+  densityMode: 'count' | 'percent';
+  densityValue: number;
+}
 
 export interface TextWrapperConfig {
   prefix: string;
@@ -23,40 +37,16 @@ export interface LayoutSpecificConfig {
   };
 }
 
-export interface StyleConfig {
-  // --- Translation Text Styles ---
-  color: string;
-  backgroundColor: string;
-  underlineStyle: 'solid' | 'dashed' | 'dotted' | 'double' | 'wavy' | 'none';
-  underlineColor: string;
-  underlineOffset: string;
-  isBold: boolean;
-  isItalic: boolean;
-  fontSize: string;
-  opacity?: number; 
+export interface OriginalTextConfig {
+  show: boolean;
+  activeMode: 'horizontal' | 'vertical'; 
+  bracketsTarget: 'translation' | 'original'; // Deprecated conceptually, kept for backward compat if needed
   
-  // --- Layout Isolation (New) ---
-  layoutMode: 'horizontal' | 'vertical';
+  // Isolated configurations
   horizontal: LayoutSpecificConfig;
   vertical: LayoutSpecificConfig;
 
-  // --- Original Text Styles (New) ---
-  originalTextColor: string;
-  originalTextFontSize: string;
-
-  // --- Density Settings ---
-  densityMode: 'count' | 'percent';
-  densityValue: number;
-}
-
-export interface OriginalTextConfig {
-  show: boolean;
-  // Deprecated fields kept for migration safety if needed, but logic moved to StyleConfig
-  activeMode?: 'horizontal' | 'vertical'; 
-  bracketsTarget?: 'translation' | 'original';
-  horizontal?: LayoutSpecificConfig;
-  vertical?: LayoutSpecificConfig;
-  style?: any; 
+  style: StyleConfig;
 }
 
 export interface PhraseItem {
